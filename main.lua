@@ -35,6 +35,9 @@ function love.load()
         fullscreen = false,
         resizable = true
     })
+
+    --initializing input table
+    love.keyboard.keysPressed = {}
 end
 
 function love.resize(w,h)
@@ -42,8 +45,19 @@ function love.resize(w,h)
 end
 
 function love.keypressed(key)
+    --adding keypressed table in the frame
+    love.keyboard.keysPressed[key] = true
     if key == 'escape' then
         love.event.quit()
+    end
+end
+
+--a function used to check the global input table for the keys activated during the frame
+function love.keyboard.wasPressed(key)
+    if love.keyboard.keysPressed[key] then
+        return true
+    else
+        return false
     end
 end
 
@@ -51,6 +65,11 @@ function love.update(dt)
     backgroundScroll = (backgroundScroll + BACKGROUND_SCROLL_SPEED * dt) % BACKGROUND_LOOPING_POINT
 
     groundScroll = (groundScroll + GROUND_SCROLL_SPEED * dt) % VIRTUAL_WIDTH
+
+    bird:update(dt)
+
+    --reset input table
+    love.keyboard.keysPressed = {}
 end
 
 function love.draw()
