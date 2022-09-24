@@ -2,7 +2,17 @@ push = require'push'
 
 Class = require 'class'
 
+require 'StateMachine'
+
+require '/states/BaseState'
+require '/states/CountdownState'
+require '/states/PlayState'
+require '/states/ScoreState'
+require '/states/TitleScreenState'
+
+require 'Pipe'
 require 'Bird'
+require 'PipePair'
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
@@ -23,12 +33,35 @@ local GROUND_SCROLL_SPEED = 30
 --point in which the background will loop
 local BACKGROUND_LOOPING_POINT = 413
 
-local bird = Bird()
+--global variable to scroll the map
+scrolling = true
 
 function love.load()
     love.graphics.setDefaultFilter('nearest', 'nearest')
 
+    --seed the RNG
+    math.randomseed(os.time())
+
     love.window.setTitle('Flappy Bird')
+
+    smallFont = love.graphics.newFont('/font/font.ttf', 8)
+    mediumFont = love.graphics.newFont('/font/flappy.ttf', 14)
+    flappyFont = love.graphics.newFont('/font/flappy.ttf', 28)
+    hugeFont = love.graphics.newFont('/font/flappy.ttf', 56)
+    love.graphics.setFont(flappyFont)
+
+    sounds = {
+        ['jump'] = love.audio.newSource('sounds/jump.wav', 'static'),
+        ['explosion'] = love.audio.newSource('sounds/explosion.wav', 'static'),
+        ['hurt'] = love.audio.newSource('sounds/hurt.wav', 'static'),
+        ['score'] = love.audio.newSource('sounds/score.wav', 'static'),
+        ['music'] = love.audio.newSource('sounds/marios_way.mp3', 'static')
+    }
+
+     -- kick off music
+     sounds['music']:setLooping(true)
+     sounds['music']:play()
+ 
 
     push:setupScreen(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT,{
         vsync =  true,
@@ -36,8 +69,20 @@ function love.load()
         resizable = true
     })
 
+    -- initialize state machine with all state-returning functions
+    gStateMachine = StateMachine {
+        ['title'] = function() return TitleScreenState() end,
+        ['countdown'] = function() return CountdownState() end,
+        ['play'] = function() return PlayState() end,
+        ['score'] = function() return ScoreState() end
+    }
+    gStateMachine:change('title')
+
     --initializing input table
     love.keyboard.keysPressed = {}
+
+    -- initialize mouse input table
+    love.mouse.buttonsPressed = {}
 end
 
 function love.resize(w,h)
@@ -52,35 +97,39 @@ function love.keypressed(key)
     end
 end
 
---a function used to check the global input table for the keys activated during the frame
+function love.mousepressed(x, y, button)
+    love.mouse.buttonsPressed[button] = true
+end
+
 function love.keyboard.wasPressed(key)
-    if love.keyboard.keysPressed[key] then
-        return true
-    else
-        return false
-    end
+    return love.keyboard.keysPressed[key]
+end
+
+--[[
+    Equivalent to our keyboard function from before, but for the mouse buttons.
+]]
+function love.mouse.wasPressed(button)
+    return love.mouse.buttonsPressed[button]
 end
 
 function love.update(dt)
-    backgroundScroll = (backgroundScroll + BACKGROUND_SCROLL_SPEED * dt) % BACKGROUND_LOOPING_POINT
+    if scrolling then
+        backgroundScroll = (backgroundScroll + BACKGROUND_SCROLL_SPEED * dt) % BACKGROUND_LOOPING_POINT
+        groundScroll = (groundScroll + GROUND_SCROLL_SPEED * dt) % VIRTUAL_WIDTH
+    end
 
-    groundScroll = (groundScroll + GROUND_SCROLL_SPEED * dt) % VIRTUAL_WIDTH
+    gStateMachine:update(dt)
 
-    bird:update(dt)
-
-    --reset input table
     love.keyboard.keysPressed = {}
+    love.mouse.buttonsPressed = {}
 end
 
 function love.draw()
     push:start()
-
+    
     love.graphics.draw(background, -backgroundScroll, 0)
-
+    gStateMachine:render()
     love.graphics.draw(ground, -groundScroll, VIRTUAL_HEIGHT - 16)
-
-    --rendering bird
-    bird:render()
-
+    
     push:finish()
 end
